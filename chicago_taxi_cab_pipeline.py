@@ -37,7 +37,7 @@ from tfx.proto import trainer_pb2
 from tfx.utils import types
 from tfx.utils import channel
 
-_IMAGE = 'tensorflow/tfx:0.13rc1'
+_IMAGE = 'tensorflow/tfx:0.13.0rc2'
 _COMMAND = [
     'python',
     '/tfx-src/tfx/orchestration/kubeflow/container_entrypoint.py',
@@ -221,7 +221,30 @@ _taxi_utils = ""
 @dsl.pipeline(
     name="Chicago Taxi Cab Tip Prediction Pipeline", description="TODO")
 def pipeline():
-  example_gen = BigQueryExampleGen(query="")
+  example_gen = BigQueryExampleGen(
+      query="""
+          SELECT
+            pickup_community_area,
+            fare,
+            EXTRACT(MONTH FROM trip_start_timestamp) AS trip_start_month,
+            EXTRACT(HOUR FROM trip_start_timestamp) AS trip_start_hour,
+            EXTRACT(DAYOFWEEK FROM trip_start_timestamp) AS trip_start_day,
+            UNIX_SECONDS(trip_start_timestamp) AS trip_start_timestamp,
+            pickup_latitude,
+            pickup_longitude,
+            dropoff_latitude,
+            dropoff_longitude,
+            trip_miles,
+            pickup_census_tract,
+            dropoff_census_tract,
+            payment_type,
+            company,
+            trip_seconds,
+            dropoff_community_area,
+            tips
+          FROM `bigquery-public-data.chicago_taxi_trips.taxi_trips`
+          LIMIT 10000
+                                   """)
 
   statistics_gen = StatisticsGen(input_data=example_gen.outputs['examples'])
 
