@@ -14,13 +14,19 @@
 
 import argparse
 import json
+import os
 
 from typing import Optional, Dict, List
+
+from google.protobuf import text_format
 
 from kfp import dsl
 from kfp import gcp
 from kfp.compiler import compiler
 from kubernetes import client as k8s_client
+
+import tensorflow as tf
+
 from tfx.components.example_gen.big_query_example_gen import component as big_query_example_gen_component
 from tfx.components.statistics_gen import component as statistics_gen_component
 from tfx.components.schema_gen import component as schema_gen_component
@@ -37,20 +43,24 @@ from tfx.proto import trainer_pb2
 from tfx.utils import types
 from tfx.utils import channel
 
-_IMAGE = 'tensorflow/tfx:0.13rc1'
+_PROJECT_ID=''
+_GCP_REGION=''
+_PIPELINE_ROOT = ''
+_PIPELINE_NAME = ''
+_LOG_ROOT = ''
+
+_IMAGE = ''
 _COMMAND = [
     'python',
     '/tfx-src/tfx/orchestration/kubeflow/container_entrypoint.py',
 ]
-
-_BEAM_PIPELINE_ARGS = {}
-
 
 class TfxComponentWrapper(dsl.ContainerOp):
 
   def __init__(self,
                component: base_component.BaseComponent,
                input_dict: Optional[Dict] = None):
+
     self.component = component
 
     executor_class_path = '.'.join(
@@ -63,6 +73,18 @@ class TfxComponentWrapper(dsl.ContainerOp):
     file_outputs = {
         output: '/output/ml_metadata/{}'.format(output) for output in outputs
     }
+
+    exec_properties = component.exec_properties
+
+    # extra exec properties that is needed for KubeflowExecutorWrapper.
+    exec_properties['output_dir'] = os.path.join(_PIPELINE_ROOT, _PIPELINE_NAME)
+    exec_properties['beam_pipeline_args'] = [
+        '--runner=DataflowRunner',
+        '--experiments=shuffle_mode=auto',
+        '--project=' + _PROJECT_ID,
+        '--temp_location=' + os.path.join(_PIPELINE_ROOT, 'tmp'),
+        '--region=' + _GCP_REGION,
+    ]
 
     arguments = [
         '--exec_properties',
@@ -83,6 +105,9 @@ class TfxComponentWrapper(dsl.ContainerOp):
 
     super().__init__(
         name=component.component_name,
+        # TODO(muchida): each component could take different child image,
+        # while maintaining the common entry point. It is nice because it could
+        # cleanly embeds user code and/or configuration.
         image=_IMAGE,
         command=_COMMAND,
         arguments=arguments,
@@ -215,13 +240,39 @@ class Pusher(TfxComponentWrapper):
     })
 
 
-_taxi_utils = ""
+_taxi_utils = "gs://muchida-tfx-oss-kfp/taxi_utils.py"
 
 
 @dsl.pipeline(
-    name="Chicago Taxi Cab Tip Prediction Pipeline", description="TODO")
+    name="Chicago Taxi Cab Tip Prediction Pipeline",
+    description="TODO"
+)
 def pipeline():
-  example_gen = BigQueryExampleGen(query="")
+
+  example_gen = BigQueryExampleGen(
+      query="""
+          SELECT
+            pickup_community_area,
+            fare,
+            EXTRACT(MONTH FROM trip_start_timestamp) AS trip_start_month,
+            EXTRACT(HOUR FROM trip_start_timestamp) AS trip_start_hour,
+            EXTRACT(DAYOFWEEK FROM trip_start_timestamp) AS trip_start_day,
+            UNIX_SECONDS(trip_start_timestamp) AS trip_start_timestamp,
+            pickup_latitude,
+            pickup_longitude,
+            dropoff_latitude,
+            dropoff_longitude,
+            trip_miles,
+            pickup_census_tract,
+            dropoff_census_tract,
+            payment_type,
+            company,
+            trip_seconds,
+            dropoff_community_area,
+            tips
+          FROM `bigquery-public-data.chicago_taxi_trips.taxi_trips`
+          LIMIT 10000"""
+  )
 
   statistics_gen = StatisticsGen(input_data=example_gen.outputs['examples'])
 
