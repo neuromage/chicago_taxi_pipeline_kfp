@@ -105,6 +105,9 @@ class TfxComponentWrapper(dsl.ContainerOp):
 
     super().__init__(
         name=component.component_name,
+        # TODO(muchida): each component could take different child image,
+        # while maintaining the common entry point. It is nice because it could
+        # cleanly embeds user code and/or configuration.
         image=_IMAGE,
         command=_COMMAND,
         arguments=arguments,
