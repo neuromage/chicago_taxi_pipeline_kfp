@@ -43,13 +43,13 @@ from tfx.proto import trainer_pb2
 from tfx.utils import types
 from tfx.utils import channel
 
-_PROJECT_ID='caipe-dev'
-_GCP_REGION='us-central1'
-_PIPELINE_ROOT = 'gs://muchida-tfx-oss-kfp/chicago_taxi_pipeline_output/tfx'
-_PIPELINE_NAME = 'chicago_taxi_pipeline_kubeflow_nov'
-_LOG_ROOT = '/var/tmp/tfx/logs'
+_PROJECT_ID=''
+_GCP_REGION=''
+_PIPELINE_ROOT = ''
+_PIPELINE_NAME = ''
+_LOG_ROOT = ''
 
-_IMAGE = 'gcr.io/caipe-dev/tensorflow/tfx-muchida:latest'
+_IMAGE = ''
 _COMMAND = [
     'python',
     '/tfx-src/tfx/orchestration/kubeflow/container_entrypoint.py',
